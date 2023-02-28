@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -14,6 +13,12 @@ import (
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		app.notFound(w)
+		return
+	}
+
+	snippets, err := app.snippets.Latest()
+	if err != nil {
+		app.serverError(w, err)
 		return
 	}
 
@@ -30,10 +35,14 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ts.ExecuteTemplate(w, "base", nil)
+	// Create an instance of a templateData struct holding the slice of snippets.
+	data := &templateData{
+		Snippets: snippets,
+	}
+	// Pass in the templateData struct when executing the template.
+	err = ts.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		app.serverError(w, err)
-		http.Error(w, "Internal Server Error", 500)
 	}
 }
 
@@ -54,7 +63,26 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "%+v", snippet)
+	// Initialize a slice containing the paths to the view.tmpl file,
+	// plus the base layout and navigation partial that we made earlier.
+	files := []string{
+		"./ui/html/base.html",
+		"./ui/html/partials/nav.html",
+		"./ui/html/pages/view.html",
+	}
+	// Parse the template files...
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	// And then execute them. Notice how we are passing in the snippet
+	// data (a models.Snippet struct) as the final parameter?
+	err = ts.ExecuteTemplate(w, "base", snippet)
+	if err != nil {
+		app.serverError(w, err)
+	}
+
 }
 
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
